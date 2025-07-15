@@ -1,4 +1,4 @@
-package org.lilithtechs.metrisjson;
+package io.lilithtechs.metrisjson;
 
 
 import java.lang.reflect.Array;
