@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>MetisJson</name>
-    <description>A dependency free GPLv3 Json library</description>
+    <description>A dependency free APL2 Json library</description>
     <inceptionYear>2025</inceptionYear>
 
     <properties>
