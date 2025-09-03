@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.lilithtechs</groupId>
-    <artifactId>MetisJson</artifactId>
+    <artifactId>metis-json</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
@@ -16,9 +16,17 @@
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- ONLY USED FOR TESTs-->
+
         <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
     </properties>
+    
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/Random-user420/MetisJson</url>
+        </repository>
+    </distributionManagement>
 
     <build>
         <plugins>
