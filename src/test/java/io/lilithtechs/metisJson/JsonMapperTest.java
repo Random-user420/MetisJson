@@ -16,11 +16,14 @@
 package io.lilithtechs.metisJson;
 
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.List;
 
+class JsonMapperTest {
+    private JsonMapper jsonMapper = new JsonMapper();
 
-class JsonUtilsTest {
     // --- Helper classes for testing ---
     static class Person {
         private String name;
@@ -28,6 +31,9 @@ class JsonUtilsTest {
         private transient String city;
         private List<String> skills;
         private static final String SPECIES = "Human";
+
+        public Person() {
+        }
 
 
         public Person(String name, int age, String city, List<String> skills) {
@@ -37,9 +43,17 @@ class JsonUtilsTest {
             this.skills = skills;
         }
 
-        public String getName() { return name; }
-        public int getAge() { return age; }
-        public List<String> getSkills() { return skills; }
+        public String getName() {
+            return name;
+        }
+
+        public int getAge() {
+            return age;
+        }
+
+        public List<String> getSkills() {
+            return skills;
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -56,20 +70,27 @@ class JsonUtilsTest {
         private String teamName;
         private List<Person> members;
 
-        public Team() {}
+        public Team() {
+        }
 
         public Team(String teamName, List<Person> members) {
             this.teamName = teamName;
             this.members = members;
         }
 
-        public String getTeamName() { return teamName; }
-        public List<Person> getMembers() { return members; }
+        public String getTeamName() {
+            return teamName;
+        }
+
+        public List<Person> getMembers() {
+            return members;
+        }
     }
 
+    @Test
     public void testSimpleObjectSerialization() throws Exception {
         Person person = new Person("John Doe", 30, "New York", List.of("Java", "Python"));
-        String json = JsonUtils.toJson(person);
+        String json = jsonMapper.toJson(person);
 
         assertCondition(json.contains("\"name\":\"John Doe\""), "JSON should contain name");
         assertCondition(json.contains("\"age\":30"), "JSON should contain age");
@@ -78,9 +99,10 @@ class JsonUtilsTest {
         assertCondition(!json.contains("SPECIES"), "JSON should not contain static field 'SPECIES'");
     }
 
+    @Test
     public void testSimpleObjectDeserialization() throws Exception {
         String json = "{\"name\":\"John Doe\",\"age\":30,\"skills\":[\"Java\",\"Python\"]}";
-        Person person = JsonUtils.fromJson(json, Person.class);
+        Person person = jsonMapper.fromJson(json, Person.class);
 
         assertCondition(person.getName().equals("John Doe"), "Deserialized name should be 'John Doe'");
         assertCondition(person.getAge() == 30, "Deserialized age should be 30");
@@ -88,10 +110,11 @@ class JsonUtilsTest {
         assertCondition(person.getSkills().contains("Java"), "Skills should include 'Java'");
     }
 
+    @Test
     public void testTeamDeserializationWithNestedObjects() throws Exception {
         String teamJson = "{\"teamName\":\"Eagles\",\"members\":[{\"name\":\"Jane Smith\",\"age\":25,\"skills\":[\"C#\",\"JavaScript\"]},{\"name\":\"Peter Jones\",\"age\":42,\"skills\":[\"Go\",\"Rust\"]}]}";
 
-        Team team = JsonUtils.fromJson(teamJson, Team.class);
+        Team team = jsonMapper.fromJson(teamJson, Team.class);
 
         assertCondition(team.getTeamName().equals("Eagles"), "Team name should be 'Eagles'");
         assertCondition(team.getMembers().size() == 2, "Team should have 2 members");
@@ -105,6 +128,7 @@ class JsonUtilsTest {
         assertCondition(member2.getSkills().get(0).equals("Go"), "Member 2 skill is incorrect");
     }
 
+    @Test
     public void testFullSerializationCycle() throws Exception {
         List<Person> people = new ArrayList<>();
         people.add(new Person("Jane Smith", 25, "London", List.of("C#", "JavaScript")));
@@ -112,27 +136,29 @@ class JsonUtilsTest {
         Team originalTeam = new Team("Eagles", people);
 
         // Convert to JSON
-        String teamJson = JsonUtils.toJson(originalTeam);
+        String teamJson = jsonMapper.toJson(originalTeam);
 
         // Convert back to an object
-        Team deserializedTeam = JsonUtils.fromJson(teamJson, Team.class);
+        Team deserializedTeam = jsonMapper.fromJson(teamJson, Team.class);
 
         assertCondition(originalTeam.getTeamName().equals(deserializedTeam.getTeamName()), "Team names should match after cycle");
         assertCondition(originalTeam.getMembers().equals(deserializedTeam.getMembers()), "Team members should be equal after cycle");
     }
 
+    @Test
     public void testNullValue() throws Exception {
-        String json = JsonUtils.toJson(null);
+        String json = jsonMapper.toJson(null);
         assertCondition("null".equals(json), "toJson(null) should return 'null'");
 
-        Person p = JsonUtils.fromJson("null", Person.class);
+        Person p = jsonMapper.fromJson("null", Person.class);
         assertCondition(p == null, "fromJson('null') should return null");
     }
 
     /**
      * Helper assertion method. Throws an AssertionError if the condition is false.
+     *
      * @param condition The boolean condition to check.
-     * @param message The message for the AssertionError if the condition is false.
+     * @param message   The message for the AssertionError if the condition is false.
      */
     private static void assertCondition(boolean condition, String message) {
         if (!condition) {

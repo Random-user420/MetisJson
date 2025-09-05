@@ -15,107 +15,62 @@
 */
 package io.lilithtechs.metisJson;
 
+import java.lang.reflect.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * A simple JSON serialization and deserialization library.
- * This class provides static methods to convert Java objects to JSON strings (toJson)
- * and JSON strings to Java objects (fromJson). It does not rely on any external dependencies.
+ * An optimized JSON serializer/deserializer that caches class metadata (fields)
+ * to avoid expensive reflection on every call.
+ * This class is stateful and designed to be instantiated and reused.
  */
-public class JsonUtils {
-    private JsonUtils() {}
+public class JsonMapper {
+
+    // Cache to store reflection data for classes. Thread-safe.
+    private final Map<Class<?>, ClassInfo> classInfoCache = new ConcurrentHashMap<>();
+
+    /**
+     * A record to hold the cached metadata for a class.
+     * In this case, just the list of fields that should be serialized.
+     */
+    private record ClassInfo(List<Field> fields) {
+    }
+
+    /**
+     * Retrieves class metadata from the cache or computes and caches it if not present.
+     */
+    private ClassInfo getClassInfo(Class<?> clazz) {
+        // computeIfAbsent ensures this is done atomically and only once per class.
+        return classInfoCache.computeIfAbsent(clazz, c -> {
+            List<Field> serializableFields = new ArrayList<>();
+            for (Field field : c.getDeclaredFields()) {
+                if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                serializableFields.add(field);
+            }
+            return new ClassInfo(serializableFields);
+        });
+    }
+
     /**
      * Converts a Java object into its JSON string representation.
-     * Supports primitives, Strings, Numbers, Booleans, Arrays, Collections, Maps, and custom objects.
      *
      * @param value The object to serialize.
      * @return A JSON string representation of the object.
-     * @throws IllegalAccessException if a field is inaccessible.
      */
-    public static String toJson(Object value) throws IllegalAccessException {
-        if (value == null) {
-            return "null";
-        }
-
-        if (value instanceof String) {
-            return "\"" + escapeString((String) value) + "\"";
-        }
-
-        if (value instanceof Number || value instanceof Boolean) {
-            return value.toString();
-        }
-
-        if (value.getClass().isArray()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("[");
-            int length = Array.getLength(value);
-            for (int i = 0; i < length; i++) {
-                sb.append(toJson(Array.get(value, i)));
-                if (i < length - 1) {
-                    sb.append(",");
-                }
-            }
-            sb.append("]");
-            return sb.toString();
-        }
-
-        if (value instanceof Collection<?> collection) {
-            return collection.stream()
-                    .map(item -> {
-                        try {
-                            return toJson(item);
-                        } catch (IllegalAccessException e) {
-                            throw new RuntimeException(e);
-                        }
-                    })
-                    .collect(Collectors.joining(",", "[", "]"));
-        }
-
-        if (value instanceof Map<?, ?> map) {
-            String mapContent = map.entrySet().stream()
-                    .map(entry -> {
-                        try {
-                            return "\"" + escapeString(String.valueOf(entry.getKey())) + "\":" + toJson(entry.getValue());
-                        } catch (IllegalAccessException e) {
-                            throw new RuntimeException(e);
-                        }
-                    })
-                    .collect(Collectors.joining(","));
-            return "{" + mapContent + "}";
-        }
-
-        Class<?> clazz = value.getClass();
+    public String toJson(Object value) {
         StringBuilder sb = new StringBuilder();
-        sb.append("{");
-
-        Field[] fields = clazz.getDeclaredFields();
-        List<String> fieldStrings = new ArrayList<>();
-
-        for (Field field : fields) {
-            if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
-                continue;
-            }
-            field.setAccessible(true);
-            Object fieldValue = field.get(value);
-            if (fieldValue != null) {
-                fieldStrings.add("\"" + field.getName() + "\":" + toJson(fieldValue));
-            }
+        try {
+            toJson(value, sb);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException("Failed to serialize object to JSON", e);
         }
-        sb.append(String.join(",", fieldStrings));
-        sb.append("}");
         return sb.toString();
     }
+
 
     /**
      * Deserializes a JSON string into an object of the specified class.
@@ -126,7 +81,7 @@ public class JsonUtils {
      * @return An object of type T.
      */
     @SuppressWarnings("unchecked")
-    public static <T> T fromJson(String json, Class<T> clazz) {
+    public <T> T fromJson(String json, Class<T> clazz) {
         try {
             String trimmedJson = json.trim();
             if (trimmedJson.equals("null")) {
@@ -165,27 +120,7 @@ public class JsonUtils {
         }
     }
 
-    private static <T> T parseObject(String json, Class<T> clazz) throws Exception {
-        T instance = clazz.getDeclaredConstructor().newInstance();
-        Map<String, String> jsonMap = parseJsonToMap(json);
-
-        for (Field field : clazz.getDeclaredFields()) {
-            if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
-                continue;
-            }
-            field.setAccessible(true);
-            String fieldName = field.getName();
-            String jsonValue = jsonMap.get(fieldName);
-
-            if (jsonValue != null) {
-                Object value = convertJsonValueToFieldType(jsonValue, field);
-                field.set(instance, value);
-            }
-        }
-        return instance;
-    }
-
-    private static <T> List<T> parseArray(String json, Class<T> itemClazz) throws Exception {
+    private <T> List<T> parseArray(String json, Class<T> itemClazz) throws Exception {
         List<T> list = new ArrayList<>();
         String content = json.substring(1, json.length() - 1).trim();
         if (content.isEmpty()) {
@@ -226,7 +161,7 @@ public class JsonUtils {
     }
 
 
-    private static Object convertJsonValueToFieldType(String jsonValue, Field field) {
+    public Object convertJsonValueToFieldType(String jsonValue, Field field) {
         Class<?> fieldType = field.getType();
 
         if (Collection.class.isAssignableFrom(fieldType)) {
@@ -235,7 +170,7 @@ public class JsonUtils {
                 Class<?> itemType = (Class<?>) pt.getActualTypeArguments()[0];
                 try {
                     return parseArray(jsonValue, itemType);
-                } catch(Exception e) {
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -244,7 +179,7 @@ public class JsonUtils {
         return fromJson(jsonValue, fieldType);
     }
 
-    private static Map<String, String> parseJsonToMap(String json) {
+    public static Map<String, String> parseJsonToMap(String json) {
         Map<String, String> map = new HashMap<>();
         String content = json.substring(1, json.length() - 1).trim();
 
@@ -286,6 +221,109 @@ public class JsonUtils {
         }
     }
 
+    private void toJson(Object value, StringBuilder sb) throws IllegalAccessException {
+        if (value == null) {
+            sb.append("null");
+            return;
+        }
+
+        if (value instanceof String) {
+            sb.append('"').append(escapeString((String) value)).append('"');
+            return;
+        }
+
+        if (value instanceof Number || value instanceof Boolean) {
+            sb.append(value);
+            return;
+        }
+
+        if (value.getClass().isArray()) {
+            sb.append('[');
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                toJson(Array.get(value, i), sb);
+                if (i < length - 1) {
+                    sb.append(',');
+                }
+            }
+            sb.append(']');
+            return;
+        }
+
+        if (value instanceof Collection<?> collection) {
+            sb.append('[');
+            Iterator<?> iterator = collection.iterator();
+            while (iterator.hasNext()) {
+                toJson(iterator.next(), sb);
+                if (iterator.hasNext()) {
+                    sb.append(',');
+                }
+            }
+            sb.append(']');
+            return;
+        }
+
+        if (value instanceof Map<?, ?> map) {
+            sb.append('{');
+            Iterator<? extends Map.Entry<?, ?>> iterator = map.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<?, ?> entry = iterator.next();
+                sb.append('"').append(escapeString(String.valueOf(entry.getKey()))).append("\":");
+                toJson(entry.getValue(), sb);
+                if (iterator.hasNext()) {
+                    sb.append(',');
+                }
+            }
+            sb.append('}');
+            return;
+        }
+
+        ClassInfo info = getClassInfo(value.getClass());
+        sb.append('{');
+
+        List<String> fieldPairs = new ArrayList<>();
+        for (Field field : info.fields()) {
+            Object fieldValue = field.get(value);
+            if (fieldValue != null) {
+                StringBuilder fieldValueBuilder = new StringBuilder();
+                toJson(fieldValue, fieldValueBuilder);
+                fieldPairs.add("\"" + field.getName() + "\":" + fieldValueBuilder.toString());
+            }
+        }
+        sb.append(String.join(",", fieldPairs));
+        sb.append('}');
+    }
+
+    // Helper to avoid trailing commas for null fields
+    private boolean hasNextSerializableField(Iterator<Field> iterator, Object parent) throws IllegalAccessException {
+        while (iterator.hasNext()) {
+            Field nextField = iterator.next();
+            if (nextField.get(parent) != null) {
+                //TODO handle that correctly
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    // The fromJson methods would be similarly refactored to use the cache.
+    // The core logic inside parseObject would change like this:
+
+    private <T> T parseObject(String json, Class<T> clazz) throws Exception {
+        T instance = clazz.getDeclaredConstructor().newInstance();
+        Map<String, String> jsonMap = parseJsonToMap(json);
+
+        ClassInfo info = getClassInfo(clazz);
+        for (Field field : info.fields()) {
+            String jsonValue = jsonMap.get(field.getName());
+            if (jsonValue != null) {
+                Object value = convertJsonValueToFieldType(jsonValue, field);
+                field.set(instance, value);
+            }
+        }
+        return instance;
+    }
 
     private static String escapeString(String s) {
         return s.replace("\\", "\\\\")

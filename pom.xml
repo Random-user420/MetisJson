@@ -19,7 +19,7 @@
 
         <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
     </properties>
-    
+
     <distributionManagement>
         <repository>
             <id>github</id>
@@ -27,6 +27,15 @@
             <url>https://maven.pkg.github.com/Random-user420/MetisJson</url>
         </repository>
     </distributionManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.13.3</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
