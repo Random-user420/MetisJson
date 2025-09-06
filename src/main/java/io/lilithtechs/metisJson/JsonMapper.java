@@ -19,42 +19,7 @@ import java.lang.reflect.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
-/**
- * An optimized JSON serializer/deserializer that caches class metadata (fields)
- * to avoid expensive reflection on every call.
- * This class is stateful and designed to be instantiated and reused.
- */
 public class JsonMapper {
-
-    // Cache to store reflection data for classes. Thread-safe.
-    private final Map<Class<?>, ClassInfo> classInfoCache = new ConcurrentHashMap<>();
-
-    /**
-     * A record to hold the cached metadata for a class.
-     * In this case, just the list of fields that should be serialized.
-     */
-    private record ClassInfo(List<Field> fields) {
-    }
-
-    /**
-     * Retrieves class metadata from the cache or computes and caches it if not present.
-     */
-    private ClassInfo getClassInfo(Class<?> clazz) {
-        // computeIfAbsent ensures this is done atomically and only once per class.
-        return classInfoCache.computeIfAbsent(clazz, c -> {
-            List<Field> serializableFields = new ArrayList<>();
-            for (Field field : c.getDeclaredFields()) {
-                if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
-                    continue;
-                }
-                field.setAccessible(true);
-                serializableFields.add(field);
-            }
-            return new ClassInfo(serializableFields);
-        });
-    }
-
     /**
      * Converts a Java object into its JSON string representation.
      *
@@ -71,7 +36,6 @@ public class JsonMapper {
         return sb.toString();
     }
 
-
     /**
      * Deserializes a JSON string into an object of the specified class.
      *
@@ -80,7 +44,6 @@ public class JsonMapper {
      * @param <T>   The type of the target object.
      * @return An object of type T.
      */
-    @SuppressWarnings("unchecked")
     public <T> T fromJson(String json, Class<T> clazz) {
         try {
             String trimmedJson = json.trim();
@@ -118,6 +81,35 @@ public class JsonMapper {
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize JSON", e);
         }
+    }
+
+    /**
+     * Clears the internal cache.
+     */
+    public void clearCache()
+    {
+        classInfoCache.clear();
+    }
+
+    // Cache to store reflection data for classes. Thread-safe.
+    private final Map<Class<?>, ClassInfo> classInfoCache = new ConcurrentHashMap<>();
+
+    private record ClassInfo(List<Field> fields) {
+    }
+
+    private ClassInfo getClassInfo(Class<?> clazz) {
+        // computeIfAbsent ensures this is done atomically and only once per class.
+        return classInfoCache.computeIfAbsent(clazz, c -> {
+            List<Field> serializableFields = new ArrayList<>();
+            for (Field field : c.getDeclaredFields()) {
+                if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                serializableFields.add(field);
+            }
+            return new ClassInfo(serializableFields);
+        });
     }
 
     private <T> List<T> parseArray(String json, Class<T> itemClazz) throws Exception {
@@ -305,10 +297,6 @@ public class JsonMapper {
         }
         return false;
     }
-
-
-    // The fromJson methods would be similarly refactored to use the cache.
-    // The core logic inside parseObject would change like this:
 
     private <T> T parseObject(String json, Class<T> clazz) throws Exception {
         T instance = clazz.getDeclaredConstructor().newInstance();
