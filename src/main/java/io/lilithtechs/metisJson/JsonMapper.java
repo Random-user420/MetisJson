@@ -15,8 +15,17 @@
 */
 package io.lilithtechs.metisJson;
 
-import java.lang.reflect.*;
-import java.util.*;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class JsonMapper {
@@ -86,8 +95,7 @@ public class JsonMapper {
     /**
      * Clears the internal cache.
      */
-    public void clearCache()
-    {
+    public void clearCache() {
         classInfoCache.clear();
     }
 
@@ -98,25 +106,25 @@ public class JsonMapper {
     }
 
     private ClassInfo getClassInfo(Class<?> clazz) {
-        // computeIfAbsent ensures this is done atomically and only once per class.
         return classInfoCache.computeIfAbsent(clazz, c -> {
             List<Field> serializableFields = new ArrayList<>();
+            // Use getDeclaredFields to access private fields
             for (Field field : c.getDeclaredFields()) {
                 if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
                     continue;
                 }
-                field.setAccessible(true);
+                field.setAccessible(true); // Crucial for private fields
                 serializableFields.add(field);
             }
             return new ClassInfo(serializableFields);
         });
     }
 
-    private <T> List<T> parseArray(String json, Class<T> itemClazz) throws Exception {
-        List<T> list = new ArrayList<>();
+    private Object parseArray(String json, Class<?> itemClazz) throws Exception {
+        List<Object> list = new ArrayList<>();
         String content = json.substring(1, json.length() - 1).trim();
         if (content.isEmpty()) {
-            return list;
+            return Array.newInstance(itemClazz, 0);
         }
 
         List<String> items = new ArrayList<>();
@@ -149,7 +157,12 @@ public class JsonMapper {
                 list.add(fromJson(itemStr.trim(), itemClazz));
             }
         }
-        return list;
+
+        Object array = Array.newInstance(itemClazz, list.size());
+        for (int i = 0; i < list.size(); i++) {
+            Array.set(array, i, list.get(i));
+        }
+        return array;
     }
 
 
@@ -161,7 +174,14 @@ public class JsonMapper {
             if (genericType instanceof ParameterizedType pt) {
                 Class<?> itemType = (Class<?>) pt.getActualTypeArguments()[0];
                 try {
-                    return parseArray(jsonValue, itemType);
+                    Object parsedResult = parseArray(jsonValue, itemType);
+                    int length = Array.getLength(parsedResult);
+                    List<Object> resultList = new ArrayList<>(length);
+                    for (int i = 0; i < length; i++) {
+                        resultList.add(Array.get(parsedResult, i));
+                    }
+                    return resultList;
+
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -174,6 +194,9 @@ public class JsonMapper {
     public static Map<String, String> parseJsonToMap(String json) {
         Map<String, String> map = new HashMap<>();
         String content = json.substring(1, json.length() - 1).trim();
+        if (content.isEmpty()) {
+            return map;
+        }
 
         int level = 0;
         int lastIndex = 0;
@@ -284,18 +307,6 @@ public class JsonMapper {
         }
         sb.append(String.join(",", fieldPairs));
         sb.append('}');
-    }
-
-    // Helper to avoid trailing commas for null fields
-    private boolean hasNextSerializableField(Iterator<Field> iterator, Object parent) throws IllegalAccessException {
-        while (iterator.hasNext()) {
-            Field nextField = iterator.next();
-            if (nextField.get(parent) != null) {
-                //TODO handle that correctly
-                return true;
-            }
-        }
-        return false;
     }
 
     private <T> T parseObject(String json, Class<T> clazz) throws Exception {

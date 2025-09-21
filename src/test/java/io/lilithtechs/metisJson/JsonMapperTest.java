@@ -19,6 +19,7 @@ package io.lilithtechs.metisJson;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 class JsonMapperTest {
@@ -154,6 +155,39 @@ class JsonMapperTest {
         assertCondition(p == null, "fromJson('null') should return null");
     }
 
+    @Test
+    public void testSchedule() throws Exception {
+        String json =
+                """
+                [
+                    {
+                        "datum": "22.09.2025",
+                        "anfStd": 1,
+                        "endStd": 3,
+                        "lehrer": "SOME",
+                        "uFachBez": "SOME",
+                        "raumLongtext": "SOME",
+                        "gruppe": "1/1"
+                    },
+                    {
+                        "datum": "22.09.2025",
+                        "anfStd": 4,
+                        "endStd": 5,
+                        "lehrer": "SOME",
+                        "uFachBez": "SOME",
+                        "raumLongtext": "SOME",
+                        "gruppe": "1/2"
+                    }
+                ]
+                """;
+
+        LessonResponse[] lessons = jsonMapper.fromJson(json, LessonResponse[].class);
+        assertCondition(Arrays.toString(lessons).equals("[LessonResponse{datum='22.09.2025', anfStd=1, endStd=3, lehrer='SOME', uFachBez='SOME', raumLongtext='SOME', gruppe='1/1'}, LessonResponse{datum='22.09.2025', anfStd=4, endStd=5, lehrer='SOME', uFachBez='SOME', raumLongtext='SOME', gruppe='1/2'}]"),
+                "Schedule reading failed");
+    }
+
+
+
     /**
      * Helper assertion method. Throws an AssertionError if the condition is false.
      *
@@ -163,6 +197,34 @@ class JsonMapperTest {
     private static void assertCondition(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);
+        }
+    }
+
+    public static class LessonResponse
+    {
+
+        public LessonResponse() {
+        }
+
+        String datum;
+        int anfStd;
+        int endStd;
+        String lehrer;
+        String uFachBez;
+        String raumLongtext;
+        String gruppe;
+
+        @Override
+        public String toString() {
+            return "LessonResponse{" +
+                    "datum='" + datum + '\'' +
+                    ", anfStd=" + anfStd +
+                    ", endStd=" + endStd +
+                    ", lehrer='" + lehrer + '\'' +
+                    ", uFachBez='" + uFachBez + '\'' +
+                    ", raumLongtext='" + raumLongtext + '\'' +
+                    ", gruppe='" + gruppe + '\'' +
+                    '}';
         }
     }
 }
