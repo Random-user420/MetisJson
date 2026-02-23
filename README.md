@@ -23,6 +23,9 @@ Have Java 17+ installed
 **We don't provide any sort of warranty on this program**
 **contact: [lilithtechs@protonmail.com](mailto:lilithtechs@protonmail.com)**
 
+# Copyright
+Mika under:
+
 ### License
 
 [Apache License 2.0](https://github.com/Random-user420/MetisJson/blob/main/LICENSE)
