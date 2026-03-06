@@ -21,7 +21,7 @@ Have Java 17+ installed
 # Warranty
 
 **We don't provide any sort of warranty on this program**
-**contact: [lilithtechs@protonmail.com](mailto:lilithtechs@protonmail.com)**
+**contact: [mikatechs@protonmail.com](mailto:mikatechs@protonmail.com)**
 
 # Copyright
 Mika under:
